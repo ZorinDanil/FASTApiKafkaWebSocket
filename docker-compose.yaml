@@ -1,0 +1,164 @@
+version: "3"
+
+services:
+  auth_db:
+    image: postgres
+    volumes:
+      - auth_db_volume:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: auth_microservice
+      POSTGRES_USER: auth_microservice
+      POSTGRES_PASSWORD: auth_microservice
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U auth_microservice" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  mongo_chat_db:
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db 
+
+  profile_db:
+    image: postgres
+    volumes:
+      - profile_db_volume:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: profile_microservice
+      POSTGRES_USER: profile_microservice
+      POSTGRES_PASSWORD: profile_microservice
+    ports:
+      - '5434:5432'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U profile_microservice" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  zookeeper:
+    image: wurstmeister/zookeeper:3.4.6
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: wurstmeister/kafka:2.12-2.2.1
+    ports:
+      - "9094:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,OUTSIDE://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,OUTSIDE://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "sh", "-c", "unset JMX_PORT; kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  auth_microservice:
+    build:
+      context: ./auth_microservice
+      dockerfile: Dockerfile
+    environment:
+      PROJECT_NAME: AUTHENTICATION-MICROSERVICE
+      POSTGRES_HOST: auth_db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: auth_microservice
+      POSTGRES_USER: auth_microservice
+      POSTGRES_PASSWORD: auth_microservice
+      FIRST_USER_USERNAME: charlyjazz
+      FIRST_USER_PASSWORD: 123456789
+      SECRET_KEY: 12345689
+      ACCESS_TOKEN_EXPIRE_MINUTES: 300
+      ALGORITHM: HS256
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - '8000:8000'
+    depends_on:
+      auth_db:
+        condition: service_healthy
+    volumes:
+      - ./auth_microservice:/app
+
+  chat_microservice:
+    build:
+      context: ./chat_microservice
+      dockerfile: Dockerfile
+    environment:
+      PROJECT_NAME: CHAT-MICROSERVICE
+      MONGO_URI: "mongodb://mongo:27017"
+      SECRET_KEY: 12345689
+    ports:
+      - '8002:8002'
+    depends_on:
+      - mongo_chat_db
+
+    volumes:
+      - ./chat_microservice:/app
+
+
+  profile_microservice:
+    build:
+      context: ./profile_microservice
+      dockerfile: Dockerfile
+    environment:
+      PROJECT_NAME: PROFILE-MICROSERVICE
+      POSTGRES_HOST: profile_db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: profile_microservice
+      POSTGRES_USER: profile_microservice
+      POSTGRES_PASSWORD: profile_microservice
+      FIRST_USER_USERNAME: charlyjazz
+      FIRST_USER_PASSWORD: 123456789
+      SECRET_KEY: 12345689
+      ACCESS_TOKEN_EXPIRE_MINUTES: 300
+      ALGORITHM: HS256
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - '8001:8001'
+    depends_on:
+      profile_db:
+        condition: service_healthy
+    volumes:
+      - ./profile_microservice:/app
+
+  # frontend:
+  #   build:
+  #     context: ./chat-frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "80:80"
+  #   environment:
+  #     - NODE_ENV=production
+  #   volumes:
+  #     - ./chat-frontend:/app
+  #     - ./chat-frontend/node_modules:/app/node_modules
+
+  #   links:
+  #     - auth_microservice
+  #     - profile_microservice
+  #     - chat_microservice
+
+volumes:
+  auth_db_volume:
+    driver: local
+  profile_db_volume:
+    driver: local
+  mongo_data:

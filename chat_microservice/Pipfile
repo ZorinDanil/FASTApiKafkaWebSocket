@@ -1,0 +1,42 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+fastapi = "*"
+pyhumps = "*"
+pydantic = "*"
+passlib = "*"
+python-jose = "*"
+python-multipart = "*"
+arq = "*"
+uvloop = "*"
+uvicorn = "*"
+python-dotenv = "*"
+bcrypt = "*"
+factory-boy = "*"
+pydantic-settings = "*"
+greenlet = "*"
+pymongo = "*"
+motor = "*"
+websockets = "*"
+
+[dev-packages]
+pytest = "*"
+pytest-asyncio = "*"
+pytest-cov = "*"
+flake8 = "*"
+isort = "*"
+black = "*"
+mypy = "*"
+httpx = "*"
+asgi-lifespan = "*"
+aiosqlite = "*"
+
+[requires]
+python_version = "3.12"
+
+[scripts]
+api-test="pytest app/tests --disable-warnings -rP"
+server="uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
